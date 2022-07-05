@@ -1,6 +1,10 @@
 import User from "../models/User.js";
-import { sendMail, getTemplate } from "../config/mailer.config.js";
-import { getToken,getTokenData } from "../config/jwt.config.js";
+import {
+  sendMail,
+  getTemplate,
+  getTemplatePassword,
+} from "../config/mailer.config.js";
+import { getToken, getTokenData } from "../config/jwt.config.js";
 export const register = async (req, res) => {
   try {
     const { name, username, email, password } = req.body;
@@ -42,8 +46,10 @@ export const login = async (req, res) => {
     if (!comparePassword) {
       return res.status(404).json({ message: "password not found" });
     }
-    if(user.status === false){
-      return res.status(404).json({message:"unauthorized profile, please check your mailbox"})
+    if (user.status === false) {
+      return res
+        .status(404)
+        .json({ message: "unauthorized profile, please check your mailbox" });
     }
     const token = getToken(user._id);
     res.status(200).json({ token });
@@ -64,20 +70,81 @@ export const profile = async (req, res) => {
   }
 };
 
-export const verifyEmail = async (req,res) => {
+export const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) return res.status(400).json({ message: "invalid link" });
 
-  const {token} = req.params
-  if(!token) return res.status(400).json({message:'invalid link'})
+    const { data } = getTokenData(token);
+    if (!data) {
+      return res.status(404).json({ message: "Invalid data" });
+    }
+    const user = await User.findOne({ email: data });
+    if (!user) {
+      return res.status(404).json({ message: "user not found" });
+    }
+    await user.updateOne({ email: data, status: true });
 
-  const {data} = getTokenData(token)
-  if(!data){
-      return res.status(404).json({ok:false,message:'Invalid data'})
+    return res.redirect("/login");
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
-  const user = await User.findOne({email:data})
-  if(!user){
-      return res.status(404).json({ok:false,message:'user not found'})
-  }
-  await user.updateOne({email:data,status:true})
+};
 
-  return res.redirect('/login')
-}
+export const forgetPassword = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "user not found" });
+    }
+    const token = getToken(user.email);
+    const password = getTemplatePassword(user.name, token);
+    await sendMail(user.email, "Forget Password", password);
+    res.status(201).json({ message: "check your email for change password" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+export const verifyPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ message: "invalid link" });
+    }
+
+    const { data } = getTokenData(token);
+    if (!data) {
+      return res.status(404).json({ message: "Invalid data" });
+    }
+
+    const user = await User.findOne({ email: data });
+    if (!user) return res.status(404).json({ message: "user not found" });
+    res.status(200).json({ message: "Token valid" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+export const newPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ message: "invalid link" });
+    }
+
+    const { data } = getTokenData(token);
+    if (!data) {
+      return res.status(404).json({ message: "Invalid data" });
+    }
+
+    const user = await User.findOne({ email: data });
+    if (!user) return res.status(404).json({ message: "user not found" });
+    user.password = await user.encryptPassword(password);
+    await user.updateOne({ email: data, password: user.password });
+    res.status(200).json({ message: "new password" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

@@ -29,3 +29,11 @@ export const getTemplate = (name, token) => {
         <a href=http://localhost:3000/verify/${token}>ConfirmarCuenta</a>
       `;
 };
+
+export const getTemplatePassword = (name, token) => {
+  return `
+        <h1>Olvido su Password ${name} ?</h1>
+        <p>para cambiar su password, ingresa al siguiente link</p>
+        <a href=http://localhost:3000/forget-password/${token}>Forget Password</a>
+      `;
+};
